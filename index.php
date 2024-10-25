@@ -82,3 +82,170 @@ header("Expires: Sat, 26 Jul 1997 05:00:00 GMT"); // Date in the past
 
   </body>
 </html>
+<?php include "../inc/dbinfo.inc"; ?>
+<html>
+<body>
+<h1>Sample page</h1>
+<?php
+
+  /* Connect to MySQL and select the database. */
+  $connection = mysqli_connect(DB_SERVER, DB_USERNAME, DB_PASSWORD);
+
+  if (mysqli_connect_errno()) echo "Failed to connect to MySQL: " . mysqli_connect_error();
+
+  $database = mysqli_select_db($connection, DB_DATABASE);
+
+  /* Ensure that the EMPLOYEES table exists. */
+  VerifyEmployeesTable($connection, DB_DATABASE);
+
+  /* Handle form actions */
+  if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $action = $_POST['ACTION'];
+    $employee_id = htmlentities($_POST['ID']);
+    $employee_name = htmlentities($_POST['NAME']);
+    $employee_address = htmlentities($_POST['ADDRESS']);
+
+    switch($action) {
+      case 'add':
+        if (strlen($employee_name) || strlen($employee_address)) {
+          AddEmployee($connection, $employee_name, $employee_address);
+        }
+        break;
+      case 'edit':
+        if (strlen($employee_id) && (strlen($employee_name) || strlen($employee_address))) {
+          EditEmployee($connection, $employee_id, $employee_name, $employee_address);
+        }
+        break;
+      case 'delete':
+        if (strlen($employee_id)) {
+          DeleteEmployee($connection, $employee_id);
+        }
+        break;
+    }
+  }
+?>
+
+<!-- Input form -->
+<form action="<?PHP echo $_SERVER['SCRIPT_NAME'] ?>" method="POST">
+  <input type="hidden" name="ACTION" value="add" />
+  <table border="0">
+    <tr>
+      <td>NAME</td>
+      <td>ADDRESS</td>
+    </tr>
+    <tr>
+      <td>
+        <input type="text" name="NAME" maxlength="45" size="30" />
+      </td>
+      <td>
+        <input type="text" name="ADDRESS" maxlength="90" size="60" />
+      </td>
+      <td>
+        <input type="submit" value="Add Data" />
+      </td>
+    </tr>
+  </table>
+</form>
+
+<!-- Display and edit table data. -->
+<table border="1" cellpadding="2" cellspacing="2">
+  <tr>
+    <td>ID</td>
+    <td>NAME</td>
+    <td>ADDRESS</td>
+    <td>ACTION</td>
+  </tr>
+
+<?php
+
+$result = mysqli_query($connection, "SELECT * FROM EMPLOYEES");
+
+while($query_data = mysqli_fetch_row($result)) {
+  echo "<tr>";
+  echo "<td>", $query_data[0], "</td>";
+  echo "<td>", $query_data[1], "</td>";
+  echo "<td>", $query_data[2], "</td>";
+  echo "<td>
+        <form action=\"{$_SERVER['SCRIPT_NAME']}\" method=\"POST\" style=\"display:inline;\">
+          <input type=\"hidden\" name=\"ID\" value=\"{$query_data[0]}\" />
+          <input type=\"submit\" name=\"ACTION\" value=\"edit\" />
+          <input type=\"text\" name=\"NAME\" placeholder=\"New Name\" />
+          <input type=\"text\" name=\"ADDRESS\" placeholder=\"New Address\" />
+        </form>
+        <form action=\"{$_SERVER['SCRIPT_NAME']}\" method=\"POST\" style=\"display:inline;\">
+          <input type=\"hidden\" name=\"ID\" value=\"{$query_data[0]}\" />
+          <input type=\"submit\" name=\"ACTION\" value=\"delete\" />
+        </form>
+        </td>";
+  echo "</tr>";
+}
+
+mysqli_free_result($result);
+mysqli_close($connection);
+?>
+
+</table>
+
+</body>
+</html>
+
+
+<?php
+
+/* Add an employee to the table. */
+function AddEmployee($connection, $name, $address) {
+   $n = mysqli_real_escape_string($connection, $name);
+   $a = mysqli_real_escape_string($connection, $address);
+
+   $query = "INSERT INTO EMPLOYEES (NAME, ADDRESS) VALUES ('$n', '$a');";
+
+   if(!mysqli_query($connection, $query)) echo("<p>Error adding employee data.</p>");
+}
+
+/* Edit an employee in the table. */
+function EditEmployee($connection, $id, $name, $address) {
+   $i = mysqli_real_escape_string($connection, $id);
+   $n = mysqli_real_escape_string($connection, $name);
+   $a = mysqli_real_escape_string($connection, $address);
+
+   $query = "UPDATE EMPLOYEES SET NAME='$n', ADDRESS='$a' WHERE ID=$i;";
+
+   if(!mysqli_query($connection, $query)) echo("<p>Error editing employee data.</p>");
+}
+
+/* Delete an employee from the table. */
+function DeleteEmployee($connection, $id) {
+   $i = mysqli_real_escape_string($connection, $id);
+
+   $query = "DELETE FROM EMPLOYEES WHERE ID=$i;";
+
+   if(!mysqli_query($connection, $query)) echo("<p>Error deleting employee data.</p>");
+}
+
+/* Check whether the table exists and, if not, create it. */
+function VerifyEmployeesTable($connection, $dbName) {
+  if(!TableExists("EMPLOYEES", $connection, $dbName))
+  {
+     $query = "CREATE TABLE EMPLOYEES (
+         ID int(11) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+         NAME VARCHAR(45),
+         ADDRESS VARCHAR(90)
+       )";
+
+     if(!mysqli_query($connection, $query)) echo("<p>Error creating table.</p>");
+  }
+}
+
+/* Check for the existence of a table. */
+function TableExists($tableName, $connection, $dbName) {
+  $t = mysqli_real_escape_string($connection, $tableName);
+  $d = mysqli_real_escape_string($connection, $dbName);
+
+  $checktable = mysqli_query($connection,
+      "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_NAME = '$t' AND TABLE_SCHEMA = '$d'");
+
+  if(mysqli_num_rows($checktable) > 0) return true;
+
+  return false;
+}
+?>
